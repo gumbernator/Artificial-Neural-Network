@@ -1,7 +1,5 @@
 #include "matrix.h"
-#include <string>
-#include <math.h>
-#include <vector>
+
 using namespace std;
 
 class NN 
@@ -21,6 +19,8 @@ private:
 	// optimizers
 	/*
 		0 -> Gradient Descent
+		1 -> Momentum
+		2 -> AdaGrad
 	*/
 	int optimizer;
 	float momentumTerm;
@@ -32,8 +32,17 @@ private:
 	*/
 	int lossFunc;
 
+    // Previous Deltas for Momentum optimizer
 	vector<Matrix> prevDeltaForWeight;
 	vector<Matrix> prevDeltaForBias;
+
+    // Sum of all Historic Gradient's square 
+    // for AdaGrad
+    vector<Matrix> GtForWeight;
+    vector<Matrix> GtForBias;
+
+    // small number preventing from division by zero
+    float eta = 0.0000001;
 
 public:
 	// Constructor
@@ -41,16 +50,14 @@ public:
 		this->lr = 0.0;
 		this->optimizer = -1;
 		this->lossFunc = -1;
-		this->momentumTerm = 0.9;
+		this->momentumTerm = 0.9; // the defualt momentum term
 		cout<<"Created a neural net\n";	
 	};
 	
-	// Adds a layer at the back
+	// Adds a layer at the back with given neurons and activation
 	void addLayer(int, string);
+	// Adds a layer at the back with given neurons and NO activation
 	void addLayer(int);
-	
-	// Removes layer at the given position
-	void removeLayer(int);
 
 	// Set structure
 	void setStructure(vector<int>);
@@ -66,6 +73,10 @@ public:
 	
 	// Prints output
 	void printOutput();
+
+    // Resets Historic gradient
+    // for AdaGrad
+    void resetAdaGrad();
 
 	// Returns prediction error based on given data
 	float meanSqrError(vector<float>, vector<float>);
@@ -101,6 +112,7 @@ void NN::addLayer(int n, string s)
 	this->structure.push_back(n);
 	
 	// adding weight and bias as a matrices if there are more than 1 layer
+    // plus adding previous 
 	if (this->structure.size() > 1) {
 		Matrix tempWeight(n, this->structure[this->structure.size() - 2]);
 		tempWeight.randomize(-2, 2);
@@ -117,6 +129,11 @@ void NN::addLayer(int n, string s)
 		Matrix tempPrevDeltaForBias(n, 1);
 		tempPrevDeltaForBias.fillZero();
 		this->prevDeltaForBias.push_back(tempPrevDeltaForBias);
+
+        Matrix tempGt(n, n);
+        tempGt.fillZero();
+        this->GtForWeight.push_back(tempGt);
+        this->GtForBias.push_back(tempGt);
 	}
 	
 	// adding layer as matrix with one column
@@ -126,6 +143,7 @@ void NN::addLayer(int n, string s)
 	this->layer.push_back(tempLayer);
 	cout<<"Added a layer with "<<n<<" neurons. (activation function: "<<s<<")\n";
 }
+
 
 void NN::addLayer(int n) 
 {
@@ -149,6 +167,11 @@ void NN::addLayer(int n)
 		Matrix tempPrevDeltaForBias(n, 1);
 		tempPrevDeltaForBias.fillZero();
 		this->prevDeltaForBias.push_back(tempPrevDeltaForBias);
+
+        Matrix tempGt(n, n);
+        tempGt.fillZero();
+        this->GtForWeight.push_back(tempGt);
+        this->GtForBias.push_back(tempGt);
 	}
 	
 	// adding layer as matrix with one column
@@ -156,27 +179,6 @@ void NN::addLayer(int n)
 	tempLayer.fillZero();
 	this->layer.push_back(tempLayer);
 	cout<<"Added a layer with "<<n<<" neurons. (no activation function)\n";
-}
-
-void NN::removeLayer(int n)
-{
-	// updating structure
-	this->structure.erase(this->structure.begin() + n);
-	
-	// removing weight and bias
-	if (this->weight.size() > n - 1) 
-    {
-		this->weight.erase(this->weight.begin() + n - 1);
-        this->bias.erase(this->bias.begin() + n - 1);
-    }
-	else 
-    {
-		cout<<"\n Can't remove weight. "<<n<<"th weight deosn't exist\n";
-		return;
-	}
-	// removing layer
-	this->layer.erase(this->layer.begin() + n);
-	cout<<"Removed "<<n<<"th layer\n";
 }
 
 void NN::setStructure(vector<int> structure)
@@ -307,14 +309,26 @@ void NN::mutate(float rate)
 void NN::setLearningRate(float lr)
 {
 	this->lr = lr;
-	cout<<"Set Learning rate: "<<lr<<endl;
+	if (this->lr > 0)
+		cout<<"Set Learning rate: "<<lr<<endl;
+	else
+	{
+		cout<<"Learning Rate must be positive!\n";
+		exit(EXIT_FAILURE);
+	}
 }
 
 // setting momentum term
 void NN::setMomentumTerm(float mt)
 {
 	this->momentumTerm = mt;
-	cout<<"Set Momentum Term: "<<mt<<endl;
+	if (mt > 0)
+		cout<<"Set Momentum Term: "<<mt<<endl;
+	else
+	{
+		cout<<"Momentum Term must be positive!\n";
+		exit(EXIT_FAILURE);
+	}
 }
 
 // set Optimizer
@@ -329,6 +343,20 @@ void NN::setOptimizer(string s)
 		cout<<"Set Optimizer: Momentum\n";
 		cout<<"Momentum term: "<<this->momentumTerm<<endl;
 	}
+	else if (s == "AdaGrad" || s == "Adagrad" || s == "adagrad")
+	{
+		this->optimizer = 2;
+		cout<<"Set Optimizer: AdaGrad\n";
+	}
+	else
+	{
+		cout<<"Invalid Optimizer!\n";
+		cout<<"Options:\n";
+		cout<<"'GD': Gradient Descent\n";
+		cout<<"'Momentum': Momentum\n";
+		cout<<"'AdaGrad': Adaptive Gradient\n";
+		exit(EXIT_FAILURE);
+	}
 }
 
 // set Loss Function
@@ -342,6 +370,15 @@ void NN::setLossFunc(string s)
 		this->lossFunc = 1;
 		cout<<"Set Loss Function: Mean Absolute Error\n";
 	}
+	else
+	{
+		cout<<"Invalid Loss Function!\n";
+		cout<<"Options:\n";
+		cout<<"'MSE': Mean Square Error\n";
+		cout<<"'MAE': Mean Absolute Error\n";
+		exit(EXIT_FAILURE);
+	}
+	
 }
 
 // training the neural net for given "input" and "target"
@@ -359,6 +396,8 @@ void NN::train(vector<float> input, vector<float> target)
 		cout<<"Optimizer is not defined!\n";
 		cout<<"Options:\n";
 		cout<<"'GD': Gradient Descent\n";
+		cout<<"'Momentum': Momentum\n";
+		cout<<"'AdaGrad': Adaptive Gradient\n";
 		exit(EXIT_FAILURE);
 	}
 	else if (this->lossFunc == -1)
@@ -386,13 +425,14 @@ void NN::train(vector<float> input, vector<float> target)
 
         // finding the error (loss) for every layers in Neural Net
             
-        // converting the target from vector to matrix
+        // converting the target from vector(n) to matrix(n, 1)
+		// so we can do matrix math
         Matrix targetMatrix(target.size(), 1);
         for (int i=0; i<target.size(); i++)
             targetMatrix.setValue(i, 0, target[i]);
 
         // initializing errors and finding the error matrix for the output layer
-				// propagating backwards
+		// propagating backwards
         Matrix error[weightSize];
         error[weightSize-1].setDimensions(this->layer[layerSize - 1].getM(), 1);
         error[weightSize-1] = (this->layer[layerSize - 1] - targetMatrix);
@@ -403,53 +443,35 @@ void NN::train(vector<float> input, vector<float> target)
             error[i] = !this->weight[i+1] * error[i+1];
         }
 
-        // updating weights according to the optimizer
-        if (this->optimizer == 0) {
-            for (int i=0; i<weightSize; i++) 
+        // updating weights according to the optimizer and loss function
+        for (int i=0; i<weightSize; i++) 
+		{
+            Matrix out = this->layer[i+1];
+            Matrix delta;
+
+			if (this->lossFunc == 0)
 			{
-                Matrix out = this->layer[i+1];
-                Matrix delta;
+				Matrix tempDelta = error[i] ^ out.getDerivative();
+				delta.setDimensions(tempDelta.getM(), tempDelta.getN());
+				delta = tempDelta;
+			}
+			else if (this->lossFunc == 1)
+			{
+				Matrix tempDelta = out.getDerivative(error[i]);
+				delta.setDimensions(tempDelta.getM(), tempDelta.getN());
+				delta = tempDelta;
+			}
 
-				if (this->lossFunc == 0)
-				{
-					Matrix tempDelta = error[i] ^ out.getDerivative();
-					delta.setDimensions(tempDelta.getM(), tempDelta.getN());
-					delta = tempDelta;
-				}
-				else if (this->lossFunc == 1)
-				{
-					Matrix tempDelta = out.getDerivative(error[i]);
-					delta.setDimensions(tempDelta.getM(), tempDelta.getN());
-					delta = tempDelta;
-				}
-
+            if (this->optimizer == 0)
+            {
                 Matrix deltaForBias = delta * this->lr;
                 this->bias[i] = this->bias[i] - deltaForBias;
 
                 Matrix deltaForWeight = (delta * !this->layer[i]) * this->lr;
                 this->weight[i] = this->weight[i] - deltaForWeight;
             }
-        }
-		else if (this->optimizer == 1) 
-		{
-			for (int i=0; i<weightSize; i++) 
-			{
-                Matrix out = this->layer[i+1];
-                Matrix delta;
-
-				if (this->lossFunc == 0)
-				{
-					Matrix tempDelta = error[i] ^ out.getDerivative();
-					delta.setDimensions(tempDelta.getM(), tempDelta.getN());
-					delta = tempDelta;
-				}
-				else if (this->lossFunc == 1)
-				{
-					Matrix tempDelta = out.getDerivative(error[i]);
-					delta.setDimensions(tempDelta.getM(), tempDelta.getN());
-					delta = tempDelta;
-				}
-
+            else if (this->optimizer == 1)
+            {
                 Matrix deltaForBias = this->prevDeltaForBias[i] * this->momentumTerm + delta * this->lr;
                 this->bias[i] = this->bias[i] - deltaForBias;
 				this->prevDeltaForBias[i] = deltaForBias;
@@ -458,11 +480,22 @@ void NN::train(vector<float> input, vector<float> target)
                 this->weight[i] = this->weight[i] - deltaForWeight;
 				this->prevDeltaForWeight[i] = deltaForWeight;
             }
-		}
-        else 
-        {
-            cout<<"Optimizer is not defined!\n";
-            exit(EXIT_FAILURE);
+            else if (this->optimizer == 2)
+            {
+                this->GtForBias[i] = this->GtForBias[i] + delta.squareDiag();
+                for (int j=0; j<this->GtForBias[i].getM(); j++)
+                    this->GtForBias[i].setValue(j, j, this->lr / sqrtf(this->GtForBias[i].getValue(j,j) + this->eta));
+
+                Matrix deltaForBias = this->GtForBias[i] * delta;
+                this->bias[i] = this->bias[i] - deltaForBias;
+
+                this->GtForWeight[i] = this->GtForWeight[i] + (delta * !this->layer[i]).squareDiag();
+                for (int j=0; j<this->GtForWeight[i].getM(); j++)
+                    this->GtForWeight[i].setValue(j, j, this->lr / sqrtf(this->GtForWeight[i].getValue(j,j) + this->eta));
+
+                Matrix deltaForWeight = this->GtForWeight[i] * (delta * !this->layer[i]);
+                this->weight[i] = this->weight[i] - deltaForWeight;
+            }
         }
 	}
     else 
@@ -471,123 +504,11 @@ void NN::train(vector<float> input, vector<float> target)
 	}
 }
 
-// training the neural net for given "inputs" and "targets"
-void NN::train(vector<float> input[], vector<float> target[], int n)
+void NN::resetAdaGrad()
 {
-	// checking if 'optimizer', 'loss function' and 'learning rate' are valid
-	if (this->lr <= 0.0)
-	{
-		cout<<"Learning Rate is not defined!\n";
-		cout<<"Learning Rate must be bigger than 0.0\n";
-		exit(EXIT_FAILURE);
-	}
-	else if (this->optimizer == -1)
-	{
-		cout<<"Optimizer is not defined!\n";
-		cout<<"Options:\n";
-		cout<<"'GD': Gradient Descent\n";
-		exit(EXIT_FAILURE);
-	}
-	else if (this->lossFunc == -1)
-	{
-		cout<<"Loss function is not defined!\n";
-		cout<<"Options:\n";
-		cout<<"'MSE': Mean Square Error\n";
-		cout<<"'MAE': Mean Absolute Error\n";
-		exit(EXIT_FAILURE);
-	}
-
-
-    vector<Matrix> tempWeight;
-    vector<Matrix> tempBias;
-
-    for (int i=0; i<this->weight.size(); i++)
-        tempWeight.push_back(this->weight[i].copy());
-    for (int i=0; i<this->bias.size(); i++)
-        tempBias.push_back(this->bias[i].copy());
-
-	
-	for (int k=0; k<n; k++) 
+    for (int i=0; i<this->GtForBias.size(); i++)
     {
-        // checking if 'input' and 'target' is matching 
-	    // ...this Neural Net's input and output layer
-		if (this->layer[0].getM() == input[k].size() && this->structure[this->structure.size() - 1] == target[k].size()) 
-		{
-
-			// Letting it feed forward therefore updating the layers
-			this->inputFloat(input[k]);
-			this->feedforward();
-					
-			// just saving some typing
-			int weightSize = this->weight.size();
-			int layerSize = this->layer.size();
-
-			// finding the error (loss) for every layers in Neural Net
-							
-			// converting the target from vector to matrix
-			Matrix targetMatrix(target[k].size(), 1);
-			for (int i=0; i<target[k].size(); i++)
-				targetMatrix.setValue(i, 0, target[k][i]);
-
-			// initializing errors and finding the error matrix for the output layer
-			// propagating backwards
-			Matrix error[weightSize];
-			error[weightSize-1].setDimensions(this->layer[layerSize - 1].getM(), 1);
-			error[weightSize-1] = (this->layer[layerSize - 1] - targetMatrix);
-
-			// finding the error matrices for hidden layer
-			for (int i=weightSize-2; i >= 0; i--) {
-			    error[i].setDimensions(this->weight[i+1].getN(), error[i+1].getN());
-				error[i] = !this->weight[i+1] * error[i+1];
-			}
-
-			// updating weights according to the optimizer
-			if (this->optimizer == 0) 
-			{
-				for (int i=0; i<weightSize; i++) {
-					Matrix out = this->layer[i+1];
-					Matrix delta;
-
-                    if (this->lossFunc == 0)
-                    {
-                        Matrix tempDelta = error[i] ^ out.getDerivative();
-                        delta.setDimensions(tempDelta.getM(), tempDelta.getN());
-                        delta = tempDelta;
-                    }
-                    else if (this->lossFunc == 1)
-                    {
-                        Matrix tempDelta = out.getDerivative(error[i]);
-                        delta.setDimensions(tempDelta.getM(), tempDelta.getN());
-                        delta = tempDelta;
-                    }
-
-					Matrix deltaForBias = delta * this->lr;
-                    tempBias[i] = tempBias[i] - (deltaForBias * (float)(1.0/n));
-					// this->bias[i] = this->bias[i] - deltaForBias;
-
-					Matrix deltaForWeight = (delta * !this->layer[i]) * this->lr;
-                    tempWeight[i] = tempWeight[i] - (deltaForWeight * (float)(1.0/n));
-					// this->weight[i] = this->weight[i] - deltaForWeight;
-				}
-			}
-			else 
-			{
-				cout<<"Optimizer is not defined!\n";
-				exit(EXIT_FAILURE);
-			}
-		}
-		else 
-		{
-			cout<<"Training error : Given input, target is not same dimensional as the Neural net's input, output layer\n";
-		}
-	}
-
-    this->weight.clear();
-    this->bias.clear();
-
-    for (int i=0; i<tempWeight.size(); i++)
-        this->weight.push_back(tempWeight[i]);
-    
-    for (int i=0; i<tempBias.size(); i++)
-        this->bias.push_back(tempBias[i]);
+        this->GtForBias[i].fillZero();
+        this->GtForWeight[i].fillZero();
+    }
 }

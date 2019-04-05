@@ -1,6 +1,4 @@
-#include <iostream>
-#include <time.h>
-using namespace std;
+#include "include.h"
 
 // returns random float between 'l' -> 'r'
 float random(float l, float r) {

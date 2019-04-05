@@ -32,11 +32,14 @@ int main()
 
 	NN net;
 	net.addLayer(2);
-	net.addLayer(2, "tanh");
-	net.addLayer(1, "tanh");
-	net.setOptimizer("Momentum");
-	net.setLearningRate(0.01);
-	net.setLossFunc("MSE");
+	net.addLayer(3, "sigmoid");
+	net.addLayer(1, "sigmoid");
+	string s;
+	cin>>s;
+	net.setOptimizer(s);
+	net.setLearningRate(0.1);
+	cin>>s;
+	net.setLossFunc(s);
 
 	for (int i=0; i<4; i++) {
         	   cout<<data[i][0]<<"  "<<data[i][1]<<endl;
@@ -56,7 +59,9 @@ int main()
 	// temp[1].print();
 
 	float error = 99999999;
-    while (error > 0.001) {
+	int counter = 0;
+	float lr = 0.1;
+    while (error > 0.005) {
         int select = (int)random(0, 4);
         net.train(data[select], target[select]);
             
@@ -65,6 +70,12 @@ int main()
 			sum += net.meanSqrError(data[i], target[i]);
 		error = sum / 4.0;
 		cout<<"error: "<<error*100<<"%"<<"\r";
+
+		counter++;
+		if (counter % 40 == 0)
+		{
+			net.resetAdaGrad();
+		}
     }
 	cout<<"\n";
 
@@ -75,5 +86,5 @@ int main()
 	   net.printOutput();
 	}
 
-	return 1;
+	return 0;
 }

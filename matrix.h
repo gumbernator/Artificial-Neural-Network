@@ -1,7 +1,4 @@
 #include "random.h"
-#include <string>
-#include <math.h>
-#include <vector>
 
 class Matrix
 {
@@ -77,6 +74,8 @@ class Matrix
 
 	// update values according to Activation function
 	Matrix activate();
+
+	Matrix squareDiag();
 	
 	// redifinition of the operators
 	
@@ -506,4 +505,16 @@ Matrix Matrix::getDerivative(Matrix e)
 		}
 		return temp;
 	}
+}
+
+Matrix Matrix::squareDiag()
+{
+	Matrix temp(this->m, this->m);
+	temp.fillZero();
+
+	for (int i=0; i<this->m; i++)
+		for (int j=0; j<this->n; j++)
+			temp.setValue(i,i, temp.getValue(i,i) + powf(this->values[i][j], 2));
+
+	return temp;
 }
