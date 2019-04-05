@@ -9,3 +9,6 @@ If you want to help, then you are more than welcome to try :+1:
   - Simple derivative form
   - Momentum
   - AdaGrad
+
+PS:
+  I used the word "delta" instead of "gradient"!
