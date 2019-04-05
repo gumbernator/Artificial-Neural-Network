@@ -1,3 +1,10 @@
+/*
+	simple random number generator
+	useful because neural net's weights initialize as a random numbers
+	... and if you want you can do some NEAT(Neuroevolution of Augmented Topologies)
+	... which is essentially a neural network with a genetic algorithm as an optimizer
+*/
+
 #include "include.h"
 
 // returns random float between 'l' -> 'r'

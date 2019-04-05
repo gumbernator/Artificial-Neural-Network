@@ -1,3 +1,10 @@
+/**
+
+ * Remember that I used word "delta" as a "gradient"
+ * If my code looks fuzzy, please let me know at guyugmonkh@hotmail.com
+
+*/
+
 #include "matrix.h"
 
 using namespace std;

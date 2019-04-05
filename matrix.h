@@ -1,3 +1,10 @@
+/*
+
+	A simple matrix function that I think anyone can understand :)
+	If my code looks fuzzy, please let me know at guyugmonkh@hotmail.com
+
+*/
+
 #include "random.h"
 
 class Matrix
@@ -29,9 +36,6 @@ class Matrix
  	
  	// constructor with parameters
  	Matrix(int, int);
-
-	// destructor
-	void destroy();
 
 	Matrix copy();
 	
