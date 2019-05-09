@@ -1,3 +1,5 @@
+# New improved python version is available
+link : https://github.com/gumbernator/Multi-Layer-Perceptron
 # Artificial-Neural-Network
 ANN from scratch in C++
 
